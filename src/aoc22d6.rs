@@ -1,33 +1,49 @@
 
 
-fn any_same(buffer: &Vec<char>) -> bool {
-    for i in 0..(buffer.len()-1) {
-        for j in (i+1)..buffer.len() {
+fn any_same(buffer: &Vec<char>) -> Option<usize> {
+    for i in (0..(buffer.len()-1)).rev() {
+        for j in ((i+1)..buffer.len()).rev() {
             if buffer[i] == buffer[j] {
-                return true;
+                return Some(i+1);
             }
         }
     }
-    return false
+    return None
 }
 
+fn advance(
+        it: &mut std::iter::Enumerate<std::str::Chars>,
+        buffer: &mut Vec<char>,
+        amount: usize)
+    -> usize
+{
+    for i in 0..(buffer.len()-amount) {
+        buffer[i] = buffer[i+amount];
+    }
+
+    let mut last_index = 0;
+    for i in (buffer.len()-amount)..buffer.len() {
+        let (index, a) = it.next().unwrap();
+        last_index = index;
+        buffer[i] = a;
+    }
+    return last_index;
+}
 
 fn solve(input: &str, length: usize) -> usize {
     let mut it = input.chars().enumerate();
     let mut buffer = Vec::with_capacity(length);
+    buffer.push(' ');
     for _ in 0..(length-1) {
         let (_, a) = it.next().unwrap();
         buffer.push(a);
     }
-    buffer.push(' ');
+    let mut safe_jump = 1;
     loop {
-        let (index, val) = it.next().unwrap();
-        buffer[length-1] = val;
-        if !any_same(&buffer) {
-            return index+1;
-        }
-        for i in 0..(length-1) {
-            buffer[i] = buffer[i+1];
+        let index = advance(&mut it, &mut buffer, safe_jump);
+        match any_same(&buffer) {
+            Some(val) => { safe_jump = val; },
+            None => { return index+1; }
         }
     }
 }
