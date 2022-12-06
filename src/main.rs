@@ -1,6 +1,6 @@
 
-mod aoc22d5;
+mod aoc22d6;
 
 fn main() {
-    aoc22d5::run();
+    aoc22d6::run();
 }
