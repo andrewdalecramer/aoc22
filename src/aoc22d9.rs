@@ -64,35 +64,41 @@ fn print_visitations(visitations: &HashSet<Vec2>) {
 }
 
 
-fn solvep1(input: &str) -> usize {
+fn solve(input: &str, length: usize) -> usize {
     let mut visitations: HashSet<Vec2> = HashSet::new();
     
-    let mut head = Vec2 {
-        x: 0,
-        y: 0,
-    };
-    let mut tail = head;
-    visitations.insert(tail);
+    let mut rope: Vec<Vec2> = Vec::with_capacity(length);
+    for _ in 0..length {
+        rope.push(Vec2 {
+            x: 0,
+            y: 0,
+        });
+    }
+    visitations.insert(rope[length-1]);
 
     for line in input.split("\n") {
         if line == "" { continue; }
         let (dir, dist) = parse_move(line);
         for _ in 0..dist {
-            head.x += dir.x;
-            head.y += dir.y;
-            if (head.x - tail.x).abs() >= 2 || (head.y - tail.y).abs() >= 2 {
-                if head.x > tail.x {
-                    tail.x += 1;
-                } else if head.x < tail.x {
-                    tail.x -= 1;
-                }
-                if head.y > tail.y {
-                    tail.y += 1;
-                } else if head.y < tail.y {
-                    tail.y -= 1;
+            rope[0].x += dir.x;
+            rope[0].y += dir.y;
+            for i in 0..(length-1) {
+                if (rope[i].x - rope[i+1].x).abs() >= 2
+                    || (rope[i].y - rope[i+1].y).abs() >= 2
+                {
+                    if rope[i].x > rope[i+1].x {
+                        rope[i+1].x += 1;
+                    } else if rope[i].x < rope[i+1].x {
+                        rope[i+1].x -= 1;
+                    }
+                    if rope[i].y > rope[i+1].y {
+                        rope[i+1].y += 1;
+                    } else if rope[i].y < rope[i+1].y {
+                        rope[i+1].y -= 1;
+                    }
                 }
             }
-            visitations.insert(tail);
+            visitations.insert(rope[length-1]);
         }
     }
     
@@ -103,8 +109,8 @@ fn solvep1(input: &str) -> usize {
 
 pub fn run() {
     let input = std::fs::read_to_string("data/d9.txt").expect("Failed to read input");
-    println!("{}", solvep1(&input));
-    // println!("{}", solvep2(&grid));
+    println!("{}", solve(&input, 2));
+    println!("{}", solve(&input, 10));
 }
 
 
@@ -123,18 +129,18 @@ R 4
 D 1
 L 5
 R 2";
-        assert_eq!(solvep1(&example), 13);
-        assert_eq!(solvep2(&example), 1);
+        assert_eq!(solve(&example, 2), 13);
+        assert_eq!(solve(&example, 10), 1);
         let example2 =
             "R 5
-            U 8
-            L 8
-            D 3
-            R 17
-            D 10
-            L 25
-            U 20";
-        assert_eq!(solvep2(&example), 36);
-        assert!(false);
+U 8
+L 8
+D 3
+R 17
+D 10
+L 25
+U 20";
+        assert_eq!(solve(&example2, 10), 36);
+        // assert!(false);
     }
 }
