@@ -8,15 +8,19 @@
 /// Uses isize so we can do arithmetic around coordinates
 pub struct Array2d<T: Copy> {
     data: Vec<T>,
-    size_i: usize,
-    size_j: usize,
+    size_i: isize,
+    size_j: isize,
 }
 
 impl<T: Copy> Array2d<T> {
     #[allow(dead_code)]
-    pub fn new(initial: T, size_i: usize, size_j: usize) -> Array2d<T> {
-        let mut data = Vec::with_capacity(size_i*size_j);
-        for _ in 0..(size_i*size_j) {
+    pub fn new(initial: T, size_i: isize, size_j: isize) -> Array2d<T> {
+        if size_i < 0 || size_j < 0 {
+            panic!("Invalid sizes given for Array2d");
+        }
+        let count = (size_i as usize)*(size_j as usize);
+        let mut data = Vec::with_capacity(count);
+        for _ in 0..count {
             data.push(initial);
         }
         Array2d {
@@ -26,14 +30,30 @@ impl<T: Copy> Array2d<T> {
         }
     }
 
+    pub fn newu(initial: T, size_i: usize, size_j: usize) -> Array2d<T> {
+        if size_i > (isize::MAX as usize) || size_j > (isize::MAX as usize) {
+            panic!("Invalid sizes given for Array2d");
+        }
+        let count = size_i * size_j;
+        let mut data = Vec::with_capacity(count);
+        for _ in 0..count {
+            data.push(initial);
+        }
+        Array2d {
+            data: data,
+            size_i: size_i as isize,
+            size_j: size_j as isize,
+        }
+    }
+
     #[allow(dead_code)]
-    pub fn size(&self) -> (usize, usize) {
-        (self.size_i, self.size_j)
+    pub fn size_u(&self) -> (usize, usize) {
+        (self.size_i as usize, self.size_j as usize)
     }
     
     #[allow(dead_code)]
     pub fn size_i(&self) -> (isize, isize) {
-        (self.size_i as isize, self.size_j as isize)
+        (self.size_i, self.size_j)
     }
     
     #[allow(dead_code)]
@@ -47,12 +67,22 @@ impl<T: Copy> Array2d<T> {
 
     #[allow(dead_code)]
     pub fn get(&self, (i, j): (isize, isize)) -> &T {
-        &self.data[i as usize + self.size_i*j as usize]
+        &self.data[i as usize + (self.size_i as usize)*(j as usize)]
+    }
+
+    #[allow(dead_code)]
+    pub fn getu(&self, (i, j): (usize, usize)) -> &T {
+        &self.data[i + (self.size_i as usize)*j]
     }
 
     #[allow(dead_code)]
     pub fn get_mut(&mut self, (i, j): (isize, isize)) -> &mut T {
-        &mut self.data[i as usize + self.size_i*j as usize]
+        &mut self.data[i as usize + (self.size_i as usize)*(j as usize)]
+    }
+
+    #[allow(dead_code)]
+    pub fn get_mutu(&mut self, (i, j): (usize, usize)) -> &mut T {
+        &mut self.data[i + (self.size_i as usize)*j]
     }
     
     /// Create a new row (add 1 to second dimension)
@@ -62,7 +92,7 @@ impl<T: Copy> Array2d<T> {
     ///    elements.
     #[allow(dead_code)]
     pub fn add_row<I: std::iter::Iterator<Item=T>>(&mut self, iterator: I) {
-        self.data.reserve(self.size_i);
+        self.data.reserve(self.size_i as usize);
 
         let mut count = 0;
         for item in iterator {
