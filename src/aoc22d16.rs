@@ -207,47 +207,95 @@ fn reduce_problem(raw: &ProblemRaw, num_rounds: Time) -> Problem {
 
 
 #[derive(Clone,Copy,Debug)]
-struct Solution {
-    current_room: usize,
-    current_round: isize,
+struct Agent {
+    target_room: usize,
+    target_room_rate: FlowRate,
+    arrival_time: Time,
+}
+
+#[derive(Clone,Copy,Debug)]
+struct Solution<const N_AGENTS: usize> {
+    agents: [Agent; N_AGENTS],
+    current_time: Time,
     current_rate: FlowRate,
     pressure_released: FlowRate,
 }
 
-impl Solution {
-    fn new(start_room: usize) -> Solution {
+impl<const N_AGENTS: usize> Solution<N_AGENTS> {
+    fn new(start_room: usize) -> Solution<N_AGENTS> {
         Solution {
-            current_room: start_room,
-            current_round: 0,
+            agents:
+                [
+                    Agent {
+                        target_room: start_room,
+                        target_room_rate: 0,
+                        arrival_time: 0
+                    };
+                    N_AGENTS
+                ],
+            current_time: 0,
             current_rate: 0,
             pressure_released: 0,
         }
     }
 }
 
+fn valve_is_open<const N_AGENTS: usize>(
+        valve: usize,
+        open_valves_stacks: &mut [Vec<usize>; N_AGENTS])
+    -> bool
+{
+    for stack in open_valves_stacks {
+        if stack.contains(&valve) { return true; }
+    }
+    false
+}
 
 /// Performs a depth first search on the tunnel system. Returns the pressure released
-fn depth_first_search(
+fn depth_first_search<const N_AGENTS: usize>(
         mut best: FlowRate,
-        solution: Solution,
-        open_valves_stack: &mut Vec<usize>,
+        solution: Solution<N_AGENTS>,
+        open_valves_stacks: &mut [Vec<usize>; N_AGENTS],
         problem: &Problem)
     -> FlowRate
 {
-    if solution.current_round <= 0 {
-        for _ in 0..solution.current_round { print!(" "); }
-        println!("room {}", problem.room_names[solution.current_room]);
+    // Which agent is first?
+    let agent_i = {
+        let mut best_agent = 0;
+        let mut best_time = Time::MAX;
+        for (i, agent) in solution.agents.iter().enumerate() {
+            if agent.arrival_time < best_time {
+                best_agent = i;
+                best_time = agent.arrival_time;
+            }
+        }
+        best_agent
+    };
+
+    let agent = &solution.agents[agent_i];
+    
+    // If we run out of rounds, then stop
+    if agent.arrival_time >= problem.num_rounds {
+        let dt = problem.num_rounds - solution.current_time;
+        let pressure_released = solution.pressure_released + dt*solution.current_rate;
+        return std::cmp::max(pressure_released, best);
     }
 
-    let remaining = problem.num_rounds - solution.current_round;
-    // If we run out of rounds, then stop
-    if remaining == 0 {
-        return std::cmp::max(solution.pressure_released, best);
-    }
+    // Advance time
+    let dt = agent.arrival_time - solution.current_time;
+    let solution = Solution {
+        agents: solution.agents, // Just copy the agents
+        current_time: agent.arrival_time,
+        current_rate: solution.current_rate + agent.target_room_rate,
+        pressure_released: solution.pressure_released + dt*solution.current_rate,
+    };
+
+    let remaining = problem.num_rounds - agent.arrival_time;
     // If we can't do better than the best, then stop
     if solution.pressure_released + remaining*problem.total_flow_rate < best {
-        return best;
+        //return best;
     }
+
     // If we run out of valves to turn, stop
     if solution.current_rate == problem.total_flow_rate {
         let total_pressure  = solution.pressure_released + remaining*solution.current_rate;
@@ -256,58 +304,88 @@ fn depth_first_search(
 
     // What if we travelled and opened a valve?
     for new_room in 0..problem.rooms.len() {
-        if open_valves_stack.contains(&new_room) {
+        if valve_is_open(new_room, open_valves_stacks) {
             // Can't open already-openned valves
             continue;
         }
-        let move_time = problem.adjacency.getu((solution.current_room, new_room));
-        if solution.current_round + move_time + 1 >= problem.num_rounds {
+
+        let move_time = problem.adjacency.getu((agent.target_room, new_room));
+        if solution.current_time + move_time + 1 >= problem.num_rounds {
             // We don't have time to go to this valve
             continue;
         }
 
-        let new_flow_rate = problem.rooms[new_room];
+        let mut new_agents = solution.agents;
+        new_agents[agent_i] =
+            Agent {
+                target_room: new_room,
+                target_room_rate: problem.rooms[new_room],
+                arrival_time: agent.arrival_time + move_time + 1,
+            };
 
         let new_solution = 
             Solution {
-                current_room: new_room,
-                current_round: solution.current_round + move_time + 1,
-                current_rate: solution.current_rate + new_flow_rate,
-                pressure_released:
-                    solution.pressure_released + (move_time+1)*solution.current_rate,
+                agents: new_agents,
+                ..solution
             };
 
-        open_valves_stack.push(new_room);
+        open_valves_stacks[agent_i].push(new_room);
         best = std::cmp::max(
             best,
             depth_first_search(
                 best,
                 new_solution,
-                open_valves_stack,
+                open_valves_stacks,
                 problem));
-        assert_eq!(open_valves_stack.pop(), Some(new_room));
+        assert_eq!(open_valves_stacks[agent_i].pop(), Some(new_room));
     }
     
     // What if we stayed here and did nothing?
+    let mut new_agents = solution.agents;
+    new_agents[agent_i] =
+        Agent {
+            target_room: usize::MAX,
+            target_room_rate: 0,
+            arrival_time: Time::MAX,
+        };
+
+    let new_solution = 
+        Solution {
+            agents: new_agents,
+            ..solution
+        };
+
     best = std::cmp::max(
         best,
-        solution.pressure_released + remaining*solution.current_rate);
+        depth_first_search(
+            best,
+            new_solution,
+            open_valves_stacks,
+            problem));
 
     best
 }
 
 
-fn solve(input: &str, num_rounds: isize) -> FlowRate {
+fn solve<const N_AGENTS: usize>(input: &str, num_rounds: isize)
+    -> FlowRate
+    where [Vec<usize>; N_AGENTS]: Default
+{
     let problem_raw = parse(input);
     let problem = reduce_problem(&problem_raw, num_rounds);
 
-    let mut room_stack = Vec::new();
-    let output = depth_first_search(
+    let mut room_stacks = Default::default();
+    
+    let output = depth_first_search::<N_AGENTS>(
         0,
         Solution::new(problem.aa_index),
-        &mut room_stack,
+        &mut room_stacks,
         &problem);
-    assert_eq!(room_stack.len(), 0);
+    
+    for room_stack in room_stacks {
+        assert_eq!(room_stack.len(), 0);
+    }
+
     output
 }
 
@@ -316,7 +394,8 @@ pub fn run() {
     let input =
         std::fs::read_to_string("data/d16.txt")
         .expect("Failed to read input");
-    println!("{}", solve(&input, 30));
+    println!("{}", solve::<1>(&input, 30));
+    println!("{}", solve::<2>(&input, 26)); // 2514 is too low
 }
 
 
@@ -337,6 +416,10 @@ Valve JJ has flow rate=21; tunnel leads to valve II";
 
     #[test]
     fn test_example() {
-        assert_eq!(solve(EXAMPLE, 30), 1651);
+        assert_eq!(solve::<1>(EXAMPLE, 30), 1651);
+    }
+    #[test]
+    fn test_example_p2() {
+        assert_eq!(solve::<2>(EXAMPLE, 26), 1707);
     }
 }

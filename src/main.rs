@@ -1,8 +1,9 @@
 
 mod arr2d;
-mod aoc22d16;
+mod arr_nd;
+mod aoc22d18;
 mod parse_utils;
 
 fn main() {
-    aoc22d16::run();
+    aoc22d18::run();
 }

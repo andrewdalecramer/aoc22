@@ -6,6 +6,7 @@
 ///  - Fast to expand along second dimension (J)
 ///
 /// Uses isize so we can do arithmetic around coordinates
+#[derive(Clone,PartialEq)]
 pub struct Array2d<T: Copy> {
     data: Vec<T>,
     size_i: isize,
@@ -30,6 +31,7 @@ impl<T: Copy> Array2d<T> {
         }
     }
 
+    #[allow(dead_code)]
     pub fn newu(initial: T, size_i: usize, size_j: usize) -> Array2d<T> {
         if size_i > (isize::MAX as usize) || size_j > (isize::MAX as usize) {
             panic!("Invalid sizes given for Array2d");
@@ -105,6 +107,30 @@ impl<T: Copy> Array2d<T> {
             panic!("Unexpect number of items added to Array2d");
         }
         self.size_j += 1;
+    }
+    
+    /// Drops a row from the back (minus 1 to second dimension)
+    /// 
+    ///  - Last row is the row to be dropped
+    #[allow(dead_code)]
+    pub fn drop_row(&mut self) {
+        let start = (self.size_i-1)*self.size_j;
+        let end = self.size_i*self.size_j;
+        self.data.drain(start as usize .. end as usize);
+        self.size_j -= 1;
+    }
+    
+    /// Drops a set of rows from the front
+    #[allow(dead_code)]
+    pub fn drop_front(&mut self, nrows: isize) {
+        if nrows > self.size_j {
+            panic!("Asked to drop more rows than the array has");
+        }
+
+        let start = 0;
+        let end = nrows*self.size_i;
+        self.data.drain(start as usize .. end as usize);
+        self.size_j -= nrows;
     }
 }
 
